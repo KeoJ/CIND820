@@ -77,7 +77,7 @@ forecast <- forecast(arima_model, h = 50)
 plot(forecast) #fix the x-axis labels
 forecast
 
-# Forecast Comparison
+# forecast comparison
 test_set <- btc_total %>%
   select(ID, Date, Close)%>%
   filter(ID > 2093 & ID < 2144)
@@ -98,7 +98,7 @@ forecast2 <- forecast(arimax_model, xreg = log10(twitter_set$tweet_vol), h = 50 
 plot(forecast2) #fix the x-axis labels
 forecast2
 
-# forecast Comparison
+# forecast comparison
 forecast_df <- data.frame(forecast2)
 forecast_df <- forecast_df[1:50,] #fix for the forecast period limit issue
 comparison2 <- data.frame(test_set, forecast_df)
