@@ -1,0 +1,102 @@
+#### Data Collection, Cleaning, and Exploration ####
+
+# install.packages("rvest")
+# install.packages(c("httr", "jsonlite"))
+library(PerformanceAnalytics)
+library(rvest)
+library(tidyverse)
+library(stringr)
+
+
+btc_price <- read_csv("C:/Users/Kevin/Desktop/Languages/R/CIND820/coin_Bitcoin.csv")
+bitinfo <- read_html("https://bitinfocharts.com/comparison/tweets-btc.html")
+
+
+#### Bitinfocharts Web Scraping ####
+twt_vl <- bitinfo %>%
+  html_elements("script")
+
+script_info <- as.character(twt_vl[5])
+
+#trimming script_info using regex
+x <- gsub('.*\\(\\"container\\"\\)\\,','',script_info)
+y <- gsub('\\, \\{labels\\:.*','',x)
+z <- str_replace_all(y, c('\\[' = '', '\\]' = '', 'new Date' = '', '\\(' = '', '\\)' = '', '\\\"' = ''))
+zx <- strsplit(z, ',')
+
+#creating dataframe
+tweet_vol = c()
+date = c()
+
+for(i in 1:length(zx[[1]])) {
+  if(i %% 2 == 0){
+    tweet_vol <- append(tweet_vol, zx[[1]][i])
+  }
+  else {
+    date <- append(date, zx[[1]][i])
+  }
+}
+
+btc_twitter <- data.frame(date, tweet_vol)
+
+
+
+#### Exploratory Analysis & Data Cleaning ####
+#btc_twitter analysis
+sapply(btc_twitter, class)
+btc_twitter$tweet_vol <- as.numeric(btc_twitter$tweet_vol)
+btc_twitter$date <- as.Date(btc_twitter$date)
+
+summary(btc_twitter)
+sd(btc_twitter$tweet_vol, na.rm = T)
+
+length(unique(btc_twitter$date))
+which(is.na(btc_twitter$tweet_vol))
+
+boxplot(btc_twitter$tweet_vol, na.rm = T)
+hist(btc_twitter$tweet_vol)
+
+#btc_price analysis 
+sapply(btc_price, class)
+summary(btc_price)
+sd(btc_price$Marketcap)
+
+boxplot(btc_price$Marketcap, na.rm = T)
+hist(btc_price$Low)
+
+#Combine datasets through innerjoin
+btc_price$Date <- as.Date(btc_price$Date)
+btc_total <- merge(btc_price, btc_twitter, by.x = "Date", by.y = "date")
+
+btc_total <- btc_total %>%
+  select(Date, High, Low, Open, Close, Volume, Marketcap, tweet_vol)
+btc_total$ID <- c(1:2517)
+
+
+#Filling missing values by averaging the neighbours
+btc_total$tweet_vol[2293] <- round(mean(c(btc_total$tweet_vol[2292], btc_total$tweet_vol[2294])), 0)
+btc_total$tweet_vol[270] <- round(mean(c(btc_total$tweet_vol[269], btc_total$tweet_vol[271])), 0)
+btc_total$tweet_vol[1703] <- round(mean(c(btc_total$tweet_vol[1702], btc_total$tweet_vol[1704])), 0)
+
+#Filling missing values through linear regression using the surrounding rows with values
+for(vol in 1:35) {
+  pos = 1424
+  pos = pos + vol
+  value <- round((-8841/36)*vol + 61317, 0)
+  btc_total$tweet_vol[pos] <- value
+}
+
+for(vol in 1:18) {
+  pos = 1172
+  pos = pos + vol
+  value <- round((-1701/19)*vol + 42760, 0)
+  btc_total$tweet_vol[pos] <- value
+}
+
+
+#Correlation Analysis
+btc_cor <- btc_total[,c(2:8)]
+chart.Correlation(btc_cor, histogram = T)
+
+#Export Dataframe
+write.csv(btc_total, "C:/Users/Kevin/Desktop/Languages/R/CIND820/btc_total.csv")
