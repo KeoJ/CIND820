@@ -96,7 +96,7 @@ for(vol in 1:18) {
 
 
 ### Exploratory Analysis ###
-# Price Plot
+## Price Plot
 ggplot(data=btc_total, aes(x=Date, y=Close, group=1)) +
   geom_line()+
   labs(title = "BTC Price VS Date", y = "BTC Price ($)")
@@ -134,4 +134,19 @@ ggheatmap +
     legend.direction = "horizontal")+
   guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
                                title.position = "top", title.hjust = 0.5))
+
+## Linear Regresssion
+# p < 2e-16, tweet_vol statistically significant.
+# R^2 = 0.3618
+lm_price <- lm(Close ~ tweet_vol, data = btc_total)
+summary(lm_price)
+
+plot(y = btc_total$Close, x = btc_total$tweet_vol, pch = 16, col = "blue",
+     xlab = "Tweet Volume", ylab = "BTC Price ($)")
+abline(lm_price)
+
+plot(lm_price$residuals, pch = 16, col = "red")
+
+
+
 
