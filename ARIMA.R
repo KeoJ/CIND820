@@ -5,21 +5,27 @@
 library(forecast)
 library(tidyverse)
 
+prediction <- 30
+start_date <- 999 #2017-01-01
+end_date <- 2093 #2019-12-31
+
 
 ### Data Prep ###
-plot(x = btc_total$Date, y = btc_total$Close, xlab = "Date", ylab = "Price")
-
-# filtering data to 2017-01-01 to 2019-12-31
+# filtering data
 train_set <- btc_total %>%
   select(ID, Date, Close)%>%
-  filter(ID > 998 & ID <2094)
+  filter(ID >= start_date & ID <= end_date)
 
 twitter_set <- btc_total %>%
   select(ID, Date, tweet_vol)%>%
-  filter(ID > 998 & ID <2094)
+  filter(ID >= start_date & ID <= end_date)
+
+test_set <- btc_total %>%
+  select(ID, Date, Close)%>%
+  filter(ID > end_date & ID <= (end_date + prediction))
 
 # converting data to time series type
-tsData <- ts(train_set$Close, start = c(2017, 1), frequency = 365)
+tsData <- ts(train_set$Close, start = c(2017), frequency = 365)
 plot(tsData, ylab = "Price", xlab = "Date")
 
 # decomposing time series data - able to see underlying patterns  
@@ -27,9 +33,8 @@ components_ts <- decompose(tsData, type = "mult")
 plot(components_ts, xlab = "Date")
 
 
-
 ## Stationary Conversion ##
-# ADF test to check if stationary - Result: p = 0.4136, data is not stationary
+# ADF test to check if stationary - Result: p = 0.4136, data is non-stationary
 adf.test(train_set$Close)
 
 # difference data to make it stationary on mean (remove trend)
@@ -46,9 +51,14 @@ plot(diff(log10(tsData), lag = 1, differences = 1), ylab='Differenced Log BTC Pr
 BTC_stationary <- diff(log10(train_set$Close), lag = 1, differences = 1)
 adf.test(BTC_stationary)
 
+# decomposing stationary time series data
+tsData2 <- ts(BTC_stationary, start = c(2017), frequency = 365)
+components_ts2 <- decompose(tsData2, type = "mult")
+plot(components_ts2, xlab = "Date")
+
+
 
 ### Model Creation ###
-
 ## Identify potential AR & MA Model ##
 # ACF & PACF tests
 acf(ts(train_set$Close), main = 'ACF BTC Price - No Change')
@@ -57,52 +67,60 @@ acf(ts(BTC_stationary), main ='ACF BTC Price')
 pacf(ts(BTC_stationary), main ='PACF BTC Price')
 
 # Auto-arima test - Result: ARIMA(0,1,0); confirms our above changes
-arima_fit <- auto.arima(log10(train_set$Close))
-summary(arima_fit)
+# lambda = 0 will log then inverse values
+arima_model <- auto.arima(train_set$Close, lambda = 0)
+summary(arima_model)
 
 # confirming fit of the model
 # result: Ljung-Box test - p = 0.1402; model is acceptable (p > 0.05)
 # the model's residuals are independent and not auto-correlated
-checkresiduals(arima_fit)
+checkresiduals(arima_model)
 
-# creating the model
-# Question: should I convert the data to log?
-# arima <- arima(log10(train_set$Close), order = c(0,1,0))
-arima_model <- arima(log10(train_set$Close), order = c(0,1,0))
-summary(arima_model)
 
 
 ### Forecasting ###
-forecast <- forecast(arima_model, h = 50)
-plot(forecast) #fix the x-axis labels
+forecast <- forecast(arima_model, h = prediction)
+autoplot(forecast, main = "BTC Price Prediction - ARIMA(0,1,0)", 
+     ylab = "BTC Price ($)", 
+     xlab = "Days",
+     ylim = c(0, 20000))
 forecast
 
-# Forecast Comparison
-test_set <- btc_total %>%
-  select(ID, Date, Close)%>%
-  filter(ID > 2093 & ID < 2144)
-test_set$Close <- log10(test_set$Close)
+# forecast comparison
 comparison <- data.frame(test_set, forecast)
 
-# MSE & RMSE
+# MSE, RMSE
+# Add: MAPE, Accuracy, & Percentage of Accuracy
 mean((comparison$Close - comparison$Point.Forecast)^2)
 sqrt(mean((comparison$Close - comparison$Point.Forecast)^2))
 
+
+
 ### ARIMAX ###
 # creating the model with twitter volume as a regressor
-arimax_model <- auto.arima(log10(train_set$Close), xreg = log10(twitter_set$tweet_vol))
+arimax_model <- auto.arima(train_set$Close, xreg = twitter_set$tweet_vol, lambda = 0)
 summary(arimax_model)
 
+# confirming fit of model
+# result: Ljung-Box test - p = 0.0545; model is acceptable (p > 0.05)
+# the model's residuals are independent and not auto-correlated
+checkresiduals(arimax_model)
+
 # forecasting
-forecast2 <- forecast(arimax_model, xreg = log10(twitter_set$tweet_vol), h = 50 )
-plot(forecast2) #fix the x-axis labels
+forecast2 <- forecast(arimax_model, xreg = twitter_set$tweet_vol, h = prediction)
+autoplot(forecast2, main = "BTC Price Prediction - ARIMAX(0,1,0)", 
+     ylab = "BTC Price ($)", 
+     xlab = "Days",
+     xlim = c(0, (length(train_set$ID) + prediction)), #quick-fix for the forecast limit issue
+     ylim = c(0, 20000))
 forecast2
 
 # forecast Comparison
 forecast_df <- data.frame(forecast2)
-forecast_df <- forecast_df[1:50,] #fix for the forecast period limit issue
+forecast_df <- forecast_df[1:prediction,] #quick-fix for the forecast limit issue
 comparison2 <- data.frame(test_set, forecast_df)
 
-# MSE & RMSE
+# MSE, RMSE
+# Add: MAPE, Accuracy, & Percentage of Accuracy
 mean((comparison2$Close - comparison2$Point.Forecast)^2)
 sqrt(mean((comparison2$Close - comparison2$Point.Forecast)^2))
