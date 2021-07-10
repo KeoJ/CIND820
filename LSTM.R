@@ -53,7 +53,7 @@ scaled_train <- train_set %>%
 lag <- prediction
 scaled_train <- as.matrix(scaled_train)
 
-# lag the data and arrange into columns for X values (predictor)
+# lag the data and arrange into columns for x-values (predictor)
 x_train_data <- t(sapply(
   1:(length(scaled_train) - lag - prediction + 1),
   function(x) scaled_train[x:(x + lag - 1), 1]
@@ -90,7 +90,7 @@ x_test <- btc_total$Close[(nrow(scaled_train) - prediction + 1):nrow(scaled_trai
 # scale the data with same scaling factors as for training
 x_test_scaled <- (x_test - scale_factors[1]) / scale_factors[2]
 
-# one sample for the array b/c we are performing one [insert prediction #] day prediction
+# one sample for the array b/c we are performing one batch of predictions
 x_pred_arr <- array(
   data = x_test_scaled,
   dim = c(
@@ -106,7 +106,7 @@ x_pred_arr <- array(
 lstm_model <- keras_model_sequential()
 
 lstm_model %>%
-  layer_lstm(units = 50, # size of the layer - apparently 2 is good enough?
+  layer_lstm(units = 50, # size of the layer
              batch_input_shape = c(1, 30, 1), # samples, timesteps, features
              return_sequences = TRUE,
              stateful = TRUE) %>%
@@ -118,13 +118,13 @@ lstm_model %>%
   layer_dropout(rate = 0.5) %>%
   time_distributed(keras::layer_dense(units = 1))
 
-# Compiling the RNN
+# compiling the RNN
 lstm_model %>%
   compile(loss = 'mae', optimizer = 'adam', metrics = 'accuracy')
 
 summary(lstm_model)
 
-# Fitting the RNN to the training set
+# fitting the RNN to the training set
 lstm_model %>% fit(
   x = x_train_arr,
   y = y_train_arr,
@@ -216,7 +216,7 @@ x_pred_arr <- array(
 lstm_model <- keras_model_sequential()
 
 lstm_model %>%
-  layer_lstm(units = 50, # size of the layer - apparently 2 is good enough?
+  layer_lstm(units = 50, # size of the layer
              batch_input_shape = c(1, 30, 2), # samples, timesteps, features
              return_sequences = TRUE,
              stateful = TRUE) %>%
@@ -228,13 +228,13 @@ lstm_model %>%
   layer_dropout(rate = 0.5) %>%
   time_distributed(keras::layer_dense(units = 1))
 
-# Compiling the RNN
+# compiling the RNN
 lstm_model %>%
   compile(loss = 'mae', optimizer = 'adam', metrics = 'accuracy')
 
 summary(lstm_model)
 
-# Fitting the RNN to the training set
+# fitting the RNN to the training set
 lstm_model %>% fit(
   x = x_train_arr,
   y = y_train_arr,
